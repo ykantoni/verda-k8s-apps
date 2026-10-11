@@ -15,18 +15,26 @@ spec:
       values: |
         servingEngineSpec:
           modelSpec:
-            - name: gemma-3n-e4b
+            - name: gemma-4-e4b
               enabled: true
-              # Chart default image — a vLLM build published by the LMCache
-              # team; works as a plain vLLM server with lmcacheConfig.enabled
-              # false below. Pinned to "latest" rather than a specific tag:
-              # vLLM added native Gemma 3n support a while back, but the
-              # exact release isn't nailed down here — if this ever needs
+              # Not the chart default (lmcache/vllm-openai) — switched to
+              # the plain upstream image while debugging a timm/vision-
+              # tower dependency issue on the previous model (Gemma 3n);
+              # kept here since it's a confirmed-recent, confirmed-working
+              # vLLM build (0.29.0) for a model released only months ago
+              # (2026-04), where the LMCache fork's bundled vLLM version
+              # is unverified. lmcacheConfig.enabled is false below anyway,
+              # so nothing LMCache-specific was ever actually in use.
+              # Pinned to "latest" rather than a specific tag: vLLM's own
+              # docs (recipes.vllm.ai) already show a dedicated
+              # --reasoning-parser/--tool-call-parser gemma4, confirming
+              # native support exists, but the exact release that added
+              # it isn't nailed down here — if this ever needs
               # reproducibility, pin a tag confirmed (via `vllm serve
-              # google/gemma-3n-E4B-it`) to support it.
-              repository: "lmcache/vllm-openai"
+              # google/gemma-4-E4B-it`) to support it.
+              repository: "vllm/vllm-openai"
               tag: "latest"
-              modelURL: "google/gemma-3n-E4B-it"
+              modelURL: "google/gemma-4-E4B-it"
               requestCPU: 6
               requestMemory: "16Gi"
               requestGPU: 1
@@ -36,8 +44,8 @@ spec:
               requestGPUType: "nvidia.com/gpu"
               limitCPU: 8
               limitMemory: "32Gi"
-              # Per your spec. ~15.7GB for the checkpoint alone (4
-              # safetensors shards) leaves only a few GB of headroom once
+              # Per your spec. ~16GB for the checkpoint alone (one
+              # safetensors file) leaves only a few GB of headroom once
               # tokenizer/config files and vLLM's own scratch space are
               # counted.
               pvcStorage: "20Gi"

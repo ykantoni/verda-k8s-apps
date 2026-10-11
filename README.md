@@ -45,8 +45,8 @@ state, same as `verda-k8s-infra`'s own `argo-apps/`.
 
 - **[`argocd-apps/vllm.yaml`](argocd-apps/vllm.yaml)** — self-hosted
   [vLLM](https://docs.vllm.ai/), serving
-  [`google/gemma-3n-E4B-it`](https://huggingface.co/google/gemma-3n-E4B-it)
-  (~15.7GB checkpoint) via the official
+  [`google/gemma-4-E4B-it`](https://huggingface.co/google/gemma-4-E4B-it)
+  (~16GB checkpoint) via the official
   [`vllm-project/production-stack`](https://github.com/vllm-project/production-stack)
   chart, namespace `vllm`. Requires a GPU node — see `verda-vm-infra`'s
   README for `gpu1` (`create_gpu_node`, off by default); the pod stays
@@ -62,18 +62,30 @@ state, same as `verda-k8s-infra`'s own `argo-apps/`.
   curl http://<any-node-ip>:30095/v1/models
   curl http://<any-node-ip>:30095/v1/chat/completions \
     -H "Content-Type: application/json" \
-    -d '{"model": "gemma-3n-e4b", "messages": [{"role": "user", "content": "Hello!"}]}'
+    -d '{"model": "gemma-4-e4b", "messages": [{"role": "user", "content": "Hello!"}]}'
   ```
 
   A few deliberate, documented-in-`vllm.yaml` deviations from the chart's
-  own defaults, worth knowing if you ever touch this file:
-  `tensorParallelSize` forced to `1` (the chart defaults to `2`, assuming
-  multiple GPUs), `requestGPUType` forced to `nvidia.com/gpu` (the chart
-  defaults to a MIG-sliced GPU type, which doesn't apply to a whole,
-  unpartitioned A100), `keda.enabled` forced to `false` (KEDA isn't
-  installed in this cluster — its CRDs don't exist), and
-  `lmcacheConfig.enabled` forced to `false` (keeping this first
-  deployment close to plain vLLM behavior).
+  own defaults, worth knowing if you ever touch this file: `repository`
+  set to the upstream `vllm/vllm-openai` image rather than the chart's
+  default `lmcache/vllm-openai` — kept from an earlier debugging session
+  (the previous model, Gemma 3n, needed `timm`, which that fork's image
+  was missing) and left in place for Gemma 4 too, since
+  `vllm/vllm-openai:latest` is a confirmed-recent, confirmed-working
+  vLLM build (`0.29.0`) for a model released only months ago
+  (2026-04), where the LMCache fork's bundled vLLM version is unverified
+  — Gemma 4 itself doesn't actually need `timm` (its vision tower's
+  `vision_config.model_type` is `gemma4_vision`, a dedicated native
+  architecture, confirmed against the real `config.json` on Hugging
+  Face, not the generic `timm_wrapper` class Gemma 3n's was); still,
+  `lmcacheConfig.enabled` stays `false` below, since nothing
+  LMCache-specific is actually in use regardless of which image serves
+  it. Plus: `tensorParallelSize` forced to `1` (the chart defaults to
+  `2`, assuming multiple GPUs), `requestGPUType` forced to
+  `nvidia.com/gpu` (the chart defaults to a MIG-sliced GPU type, which
+  doesn't apply to a whole, unpartitioned A100), and `keda.enabled`
+  forced to `false` (KEDA isn't installed in this cluster — its CRDs
+  don't exist).
 
 ## GPU Operator compatibility note
 
