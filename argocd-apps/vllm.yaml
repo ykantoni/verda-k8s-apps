@@ -15,23 +15,18 @@ spec:
       values: |
         servingEngineSpec:
           modelSpec:
-            - name: gemma-4-e4b
+            - name: gemma-4-E4B-it
               enabled: true
-              # Not the chart default (lmcache/vllm-openai) — switched to
-              # the plain upstream image while debugging a timm/vision-
-              # tower dependency issue on the previous model (Gemma 3n);
-              # kept here since it's a confirmed-recent, confirmed-working
-              # vLLM build (0.29.0) for a model released only months ago
-              # (2026-04), where the LMCache fork's bundled vLLM version
-              # is unverified. lmcacheConfig.enabled is false below anyway,
-              # so nothing LMCache-specific was ever actually in use.
-              # Pinned to "latest" rather than a specific tag: vLLM's own
-              # docs (recipes.vllm.ai) already show a dedicated
-              # --reasoning-parser/--tool-call-parser gemma4, confirming
-              # native support exists, but the exact release that added
-              # it isn't nailed down here — if this ever needs
-              # reproducibility, pin a tag confirmed (via `vllm serve
-              # google/gemma-4-E4B-it`) to support it.
+              # Not the chart default (lmcache/vllm-openai) — that image
+              # is missing the `timm` package, which Gemma 3n's vision
+              # tower (TimmWrapperModel) requires; confirmed by hand that
+              # the plain upstream image has it. lmcacheConfig.enabled is
+              # false below anyway, so nothing of the LMCache-specific
+              # image was actually being used. Pinned to "latest" rather
+              # than a specific tag: vLLM added native Gemma 3n support a
+              # while back, but the exact release isn't nailed down here —
+              # if this ever needs reproducibility, pin a tag confirmed
+              # (via `vllm serve google/gemma-4-E4B-it`) to support it.
               repository: "vllm/vllm-openai"
               tag: "latest"
               modelURL: "google/gemma-4-E4B-it"
@@ -44,8 +39,8 @@ spec:
               requestGPUType: "nvidia.com/gpu"
               limitCPU: 8
               limitMemory: "32Gi"
-              # Per your spec. ~16GB for the checkpoint alone (one
-              # safetensors file) leaves only a few GB of headroom once
+              # Per your spec. ~15.7GB for the checkpoint alone (4
+              # safetensors shards) leaves only a few GB of headroom once
               # tokenizer/config files and vLLM's own scratch space are
               # counted.
               pvcStorage: "20Gi"
@@ -77,16 +72,6 @@ spec:
         routerSpec:
           serviceType: NodePort
           nodePort: 30095
-          # Chart default (initialDelaySeconds 5 + periodSeconds 5 *
-          # failureThreshold 3 = ~20s total) is far stingier than the
-          # model server's own startupProbe (failureThreshold 60, ~10+
-          # min) — too tight here in practice: the router got SIGKILLed
-          # (exit 137) by Kubernetes for "failed startup probe" over and
-          # over despite its own logs showing a normal, successful
-          # startup each time. Match the model server's order of
-          # magnitude instead.
-          startupProbe:
-            failureThreshold: 60
   destination:
     server: https://kubernetes.default.svc
     namespace: vllm
