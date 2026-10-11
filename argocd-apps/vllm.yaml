@@ -77,6 +77,16 @@ spec:
         routerSpec:
           serviceType: NodePort
           nodePort: 30095
+          # Chart default (initialDelaySeconds 5 + periodSeconds 5 *
+          # failureThreshold 3 = ~20s total) is far stingier than the
+          # model server's own startupProbe (failureThreshold 60, ~10+
+          # min) — too tight here in practice: the router got SIGKILLed
+          # (exit 137) by Kubernetes for "failed startup probe" over and
+          # over despite its own logs showing a normal, successful
+          # startup each time. Match the model server's order of
+          # magnitude instead.
+          startupProbe:
+            failureThreshold: 60
   destination:
     server: https://kubernetes.default.svc
     namespace: vllm
