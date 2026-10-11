@@ -1,0 +1,80 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vllm
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://vllm-project.github.io/production-stack
+    chart: vllm-stack
+    targetRevision: 0.1.13
+    helm:
+      values: |
+        servingEngineSpec:
+          modelSpec:
+            - name: gemma-3n-e4b
+              enabled: true
+              # Chart default image — a vLLM build published by the LMCache
+              # team; works as a plain vLLM server with lmcacheConfig.enabled
+              # false below. Pinned to "latest" rather than a specific tag:
+              # vLLM added native Gemma 3n support a while back, but the
+              # exact release isn't nailed down here — if this ever needs
+              # reproducibility, pin a tag confirmed (via `vllm serve
+              # google/gemma-3n-E4B-it`) to support it.
+              repository: "lmcache/vllm-openai"
+              tag: "latest"
+              modelURL: "google/gemma-3n-E4B-it"
+              requestCPU: 6
+              requestMemory: "16Gi"
+              requestGPU: 1
+              # Chart default (nvidia.com/mig-4g.71gb) targets MIG-sliced
+              # GPUs. gpu1 is a whole, unpartitioned A100 — must be the
+              # plain GPU resource name instead.
+              requestGPUType: "nvidia.com/gpu"
+              limitCPU: 8
+              limitMemory: "32Gi"
+              # Per your spec. ~15.7GB for the checkpoint alone (4
+              # safetensors shards) leaves only a few GB of headroom once
+              # tokenizer/config files and vLLM's own scratch space are
+              # counted.
+              pvcStorage: "20Gi"
+              vllmConfig:
+                enablePrefixCaching: true
+                maxModelLen: 16384
+                dtype: "bfloat16"
+                # Chart default is 2 — wrong here, there's only 1 GPU.
+                tensorParallelSize: 1
+                gpuMemoryUtilization: 0.95
+                # runner/convert deliberately omitted: the chart's own
+                # defaults for these are for an embedding/pooling example,
+                # not a chat model. Leaving them unset lets vLLM use its
+                # own default (auto-detect a causal LM from the model
+                # config), which is what a chat-serving Gemma deployment
+                # needs.
+              # KV-cache offloading via LMCache — off for this first
+              # deployment, to keep the model's own stability/behavior as
+              # close to plain vLLM as possible.
+              lmcacheConfig:
+                enabled: false
+              hf_token:
+                secretName: "vllm-hf-token"
+                secretKey: "token"
+              # KEDA isn't installed in this cluster — its ScaledObject CRD
+              # doesn't exist, so this must stay off (chart defaults it on).
+              keda:
+                enabled: false
+        routerSpec:
+          serviceType: NodePort
+          nodePort: 30095
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vllm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
