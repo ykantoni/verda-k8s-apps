@@ -106,3 +106,49 @@ vLLM app out into its own repo, synced as an explicit second wave via
 (swapping models, chart versions, GPU-dependent workloads) separate from
 the core cluster bootstrap apps (storage, secrets, monitoring, ingress)
 that everything else — including this repo's own apps — depends on.
+
+## test vLLM
+
+cat <<EOF | v apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl-client
+  namespace: default
+spec:
+  containers:
+  - name: curl
+    image: curlimages/curl:latest
+    command: ["sleep", "infinity"]
+  restartPolicy: Never
+EOF
+
+v exec -it curl-client -- sh
+
+curl http://vllm-gemma-4-e4b-engine-service.vllm.svc.cluster.local:80/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "google/gemma-4-E4B-it",
+    "messages": [
+      {"role": "user", "content": "What is the capital of France?"}
+    ]
+  }'
+
+If everything is working, you will get back a response in the familiar OpenAI format:
+
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "The capital of France is Paris."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 9,
+    "total_tokens": 24
+  }
+}
