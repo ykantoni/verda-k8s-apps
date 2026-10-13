@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-agent
+  namespace: search-agent
+  labels:
+    app: search-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-agent
+  template:
+    metadata:
+      labels:
+        app: search-agent
+    spec:
+      containers:
+        # Sidecar pattern: agent and mcp-server share this Pod's network
+        # namespace, so the agent reaches the MCP server over localhost
+        # with no extra Service or auth hop (see verda-search-agent's
+        # README for the full rationale).
+        - name: agent
+          image: ghcr.io/ykantoni/verda-search-agent-agent:latest
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: VLLM_BASE_URL
+              value: "http://vllm-router-service.vllm.svc.cluster.local/v1"
+            - name: VLLM_MODEL
+              value: "gemma-4-e4b"
+            - name: MCP_SERVER_URL
+              value: "http://localhost:8001/mcp"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+        - name: mcp-server
+          image: ghcr.io/ykantoni/verda-search-agent-mcp:latest
+          ports:
+            - name: mcp
+              containerPort: 8001
+          volumeMounts:
+            - name: local-docs
+              mountPath: /data/docs
+      volumes:
+        - name: local-docs
+          persistentVolumeClaim:
+            claimName: local-docs

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: local-docs
+  namespace: search-agent
+spec:
+  # No storageClassName: relies on the cluster's default StorageClass
+  # (Longhorn, set via verda-vm-infra's RKE2 bootstrap), same as the vllm
+  # app's own PVC.
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

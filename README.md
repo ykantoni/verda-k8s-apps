@@ -17,6 +17,9 @@ state, same as `verda-k8s-infra`'s own `argo-apps/`.
 - [`vllm-secrets/`](vllm-secrets) — plain Kubernetes manifests (no Helm
   chart), referenced by `argocd-apps/vllm-secrets.yaml`'s directory
   source — not reachable from `argocd-apps/` itself.
+- [`search-agent/`](search-agent) — plain Kubernetes manifests, referenced
+  by `argocd-apps/search-agent.yaml`'s directory source, same pattern as
+  `vllm-secrets/` above.
 
 ## Apps
 
@@ -86,6 +89,27 @@ state, same as `verda-k8s-infra`'s own `argo-apps/`.
   doesn't apply to a whole, unpartitioned A100), and `keda.enabled`
   forced to `false` (KEDA isn't installed in this cluster — its CRDs
   don't exist).
+
+- **[`argocd-apps/search-agent.yaml`](argocd-apps/search-agent.yaml)** —
+  a plain-manifest directory Application pointing at
+  [`search-agent/`](search-agent): a `Deployment` (namespace
+  `search-agent`) running two sidecar containers — a LangGraph agent
+  (FastAPI, `POST /ask`) and a local-docs MCP search server, both built
+  from the separate [`verda-search-agent`](https://github.com/ykantoni/verda-search-agent)
+  repo (images on GHCR) — plus a `Service` (`NodePort` `30096`) and a
+  5Gi Longhorn-backed PVC (`local-docs`) the MCP server indexes local
+  PDF/DOC/DOCX/TXT files from. The agent uses this cluster's own `vllm`
+  app (above) as its LLM backend, so there's no external LLM API and no
+  secret material in this app at all. See `verda-search-agent`'s README
+  for how to populate the PVC with documents and for the full
+  architecture rationale (why source code lives in its own repo rather
+  than here).
+
+  ```bash
+  curl http://<any-node-ip>:30096/ask \
+    -H "Content-Type: application/json" \
+    -d '{"question": "What is the database high-availability architecture?"}'
+  ```
 
 ## GPU Operator compatibility note
 
